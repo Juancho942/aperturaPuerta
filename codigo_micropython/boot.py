@@ -21,9 +21,15 @@ rele = Pin(33,Pin.OUT)
 sonido = Pin(32,Pin.OUT)
 luzPuertaAbierta = Pin(26, Pin.OUT)
 luzPuertaCerrada = Pin(25, Pin.OUT)
+aperturarf = Pin(27, Pin.IN)
 tiempoEncendido = 0
+acceso = False
 spi = 0
 lcd = 0
+
+def int_ext(aperturarf):
+    global acceso
+    acceso = True
 
 def tiempo():
     #global tiempoEncendido
@@ -109,14 +115,24 @@ def Sonido_ingreso_targeta():
     luzPuertaAbierta.value(0)
             
 def Abrir_Puerta():
-    luzPuertaCerrada.value(0)
-    luzPuertaAbierta.value(1)
-    rele.value(1)
-    Sonido_Abrir_puerta()
-    time.sleep(3)
-    rele.value(0)
-    luzPuertaCerrada.value(1)
-    luzPuertaAbierta.value(0)
+    global acceso
+    if acceso is True:
+        luzPuertaCerrada.value(0)
+        luzPuertaAbierta.value(1)
+        Sonido_Abrir_puerta()
+        time.sleep(3)
+        luzPuertaCerrada.value(1)
+        luzPuertaAbierta.value(0)
+        acceso = False
+    else:
+        luzPuertaCerrada.value(0)
+        luzPuertaAbierta.value(1)
+        rele.value(1)
+        Sonido_Abrir_puerta()
+        time.sleep(3)
+        rele.value(0)
+        luzPuertaCerrada.value(1)
+        luzPuertaAbierta.value(0)
             
 def Sonido_Puerta_Denegada():
     sonido.value(1)
@@ -152,14 +168,13 @@ def main():
     global lcd
     
     i2c = I2C(0, sda=Pin(21), scl=Pin(22), freq=100000)
-    lcd = I2cLcd(i2c, I2C_ADDR, I2C_NUM_ROWS, I2C_NUM_COLS)    
+    lcd = I2cLcd(i2c, I2C_ADDR, I2C_NUM_ROWS, I2C_NUM_COLS)
+    lcd.clear()
+    lcd.move_to(0,0)
+    lcd.putstr("connected....")
     GLOB_WLAN=network.WLAN(network.STA_IF)
     GLOB_WLAN.active(True)
     GLOB_WLAN.connect("Francelly", "25101291")
-    lcd.clear()
-    lcd.move_to(0,0)
-    lcd.putstr("connected....")          
-
     while not GLOB_WLAN.isconnected():
         pass
 
@@ -173,9 +188,24 @@ def main():
     print(longitudDiccionario)
     spi = SPI(2, baudrate=2500000, polarity=0, phase=0)
     pantallaLcd = True
+    aperturarf.irq(trigger=Pin.IRQ_RISING, handler=int_ext)
 
     while True:
         global tiempoEncendido
+        global acceso
+        
+        if acceso is True:
+            lcd.backlight_on()
+            lcd.clear()
+            lcd.move_to(4,0)
+            lcd.putstr("ingreso")
+            lcd.move_to(2,1)
+            lcd.putstr("targeta RF")
+            pantallaLcd = False
+            print("abrir puerta")
+            Abrir_Puerta()
+            pantallaLcd = True
+            tiempoEncendido = 0
         print(tiempoEncendido)
         if (pantallaLcd):
             if(tiempoEncendido >2):
@@ -183,7 +213,7 @@ def main():
                 lcd.move_to(1,0)
                 lcd.putstr("Gestion acceso")
                 lcd.move_to(0,1)
-                lcd.putstr("CCI Rodaminetos")
+                lcd.putstr("CCI Rodamientos")
                 pantallaLcd = False
             
         if (tiempoEncendido > 4):
