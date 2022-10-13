@@ -1,4 +1,5 @@
 #from ast import For
+import machine
 from mfrc522 import MFRC522
 from machine import Pin
 from machine import SPI
@@ -18,7 +19,7 @@ I2C_NUM_COLS = 16
 
 targetaMaestra = ("0x1a0d8519",)
 uid_card = []
-rele = Pin(33,Pin.OUT)
+rele = Pin(33,Pin.OUT,Pin.PULL_UP)
 sonido = Pin(32,Pin.OUT)
 luzPuertaAbierta = Pin(26, Pin.OUT)
 luzPuertaCerrada = Pin(25, Pin.OUT)
@@ -31,11 +32,10 @@ lcd = 0
 conexion = False
 puntosConexion = 9
 puntos = 0
-
-    
-def int_ext(aperturarf):
-    global acceso
-    acceso = True
+wifi = 0
+#def int_ext(aperturarf):
+    #global acceso
+    #acceso = True
     
 tim1 = Timer(1)
 tim1.init(period=2000, mode=Timer.PERIODIC, callback=lambda t:tiempo())
@@ -43,7 +43,7 @@ tim1.init(period=2000, mode=Timer.PERIODIC, callback=lambda t:tiempo())
 def escribir():
     global uid_card
     import ufirebase as firebase
-    firebase.setURL("https://ccirod-default-rtdb.firebaseio.com/")
+    firebase.setURL("https://aperturapuertacci-default-rtdb.firebaseio.com/")
     firebase.put("CCI", {"RFID": uid_card[:]}, bg=0)
 
 
@@ -51,7 +51,7 @@ def extraerDatos():
             
     global uid_card
     import ufirebase as firebase
-    firebase.setURL("https://ccirod-default-rtdb.firebaseio.com/")
+    firebase.setURL("https://aperturapuertacci-default-rtdb.firebaseio.com/")
     firebase.get("CCI/RFID", "var1", bg=0)
     uid_card = firebase.var1
             
@@ -136,7 +136,7 @@ def Abrir_Puerta():
         luzPuertaCerrada.value(0)
         luzPuertaAbierta.value(1)
         Sonido_Abrir_puerta()
-        time.sleep(3)
+        time.sleep(1)
         luzPuertaCerrada.value(1)
         luzPuertaAbierta.value(0)
         acceso = False
@@ -145,7 +145,7 @@ def Abrir_Puerta():
         luzPuertaAbierta.value(1)
         rele.value(1)
         Sonido_Abrir_puerta()
-        time.sleep(3)
+        time.sleep(1)
         rele.value(0)
         luzPuertaCerrada.value(1)
         luzPuertaAbierta.value(0)
@@ -194,10 +194,14 @@ def mensajeConectando():
         puntos = 0
 def conectar():
     global conexion
+    global wifi
+    global tiempoEncendido
+    if wifi is 3:
+        wifi = 0
     GLOB_WLAN=network.WLAN(network.STA_IF)
     GLOB_WLAN.active(True)
     try:
-        GLOB_WLAN.connect("Francelly", "25101291")
+        GLOB_WLAN.connect("nombre wifi", "contraseña")
     
     except OSError:
         lcd.clear()
@@ -206,12 +210,15 @@ def conectar():
         lcd.move_to(1,1)
         lcd.putstr("establecer conex")
         print("no se establecio conexion")
-        conexion = True
+        machine.reset()
         pass
     while not GLOB_WLAN.isconnected():
-        global conexion
         mensajeConectando()
         conexion = False
+        if tiempoEncendido is 20:
+            tiempoEncendido = 0
+            conexion = True
+            break
         pass
     
 def main():
@@ -231,7 +238,7 @@ def main():
         extraerDatos()
     spi = SPI(2, baudrate=2500000, polarity=0, phase=0)
     pantallaLcd = True
-    aperturarf.irq(trigger=Pin.IRQ_RISING, handler=int_ext)
+    #aperturarf.irq(trigger=Pin.IRQ_RISING, handler=int_ext)
 
     while True:
         
@@ -242,7 +249,7 @@ def main():
         global acceso
         global uid_card
         
-        if tiempoEncendido > 20:
+        if tiempoEncendido > 80:
             extraerDatos()
             print("extraer datos")
             tiempoEncendido = 0
@@ -258,6 +265,9 @@ def main():
             Abrir_Puerta()
             pantallaLcd = True
             tiempoEncendido = 0
+            time.sleep_ms(50)
+            acceso = False
+            
         if (pantallaLcd):
             if(tiempoEncendido >2):
                 lcd.clear()
@@ -297,8 +307,8 @@ def main():
                     Abrir_Puerta()
                     pantallaLcd = True
                     tiempoEncendido = 0
+                    time.sleep_ms(50)
                     acceso = False
-                    
                 else:
                     lcd.backlight_on()
                     lcd.clear()
